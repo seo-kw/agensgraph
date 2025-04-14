@@ -342,6 +342,33 @@ MATCH (_agens_default_) RETURN _agens_default_;
 MATCH (_agens_default_a) RETURN _agens_default_a;
 MATCH (_agens_default_whatever) RETURN 0;
 
+--
+-- normalize support check
+--
+-- unicode vertex property
+CREATE (a:v1 {name: U&'\0061\0308\24D1c', idx: 1}) RETURN a;
+CREATE (b:v1 {name: U&'\00E4\24D1c', idx: 2}) RETURN b;
+
+-- normalize, normalize with form
+RETURN normalize(U&'\0061\0308\24D1c');
+RETURN normalize(U&'\0061\0308\24D1c', NFC);
+RETURN normalize(U&'\0061\0308\24D1c', NFD);
+RETURN normalize(U&'\0061\0308\24D1c', NFKC);
+RETURN normalize(U&'\0061\0308\24D1c', NFKD);
+
+-- property comparison
+MATCH (n:v1 {name: U&'\00E4\24D1c'}) RETURN n.name, n.idx;
+MATCH (n:v1) where n.name = normalize(U&'\00E4\24D1c') RETURN n.name, n.idx;
+MATCH (n:v1 {name: U&'\0061\0308\24D1c'}) RETURN n.name, n.idx;
+MATCH (n:v1) where n.name = normalize(U&'\0061\0308\24D1c', NFC) RETURN n.name, n.idx;
+
+-- IS NORMALIZED, IS NOT NORMALIZED
+RETURN U&'\0061\0308\24D1c' IS NORMALIZED AS NFC,
+  U&'\0061\0308\24D1c' IS NFD NORMALIZED AS NFD,
+  U&'\0061\0308\24D1c' IS NFKC NORMALIZED AS NFKC,
+  U&'\0061\0308\24D1c' IS NFKD NORMALIZED AS NFKD,
+  U&'\0061\0308\24D1c' IS NOT NORMALIZED AS NOT_NFC;
+
 -- Tear down
 DROP TABLE t1;
 DROP GRAPH test_cypher_expr CASCADE;

@@ -19753,6 +19753,36 @@ cypher_expr:
 						$$ = (Node *) n;
 					}
 				}
+			| cypher_expr IS NORMALIZED								%prec IS
+				{
+					$$ = (Node *) makeFuncCall(SystemFuncName("is_normalized"),
+											   list_make2($1, makeStringConst("NFC", -1)),
+											   COERCE_SQL_SYNTAX,
+											   @2);
+				}
+			| cypher_expr IS unicode_normal_form NORMALIZED			%prec IS
+				{
+					$$ = (Node *) makeFuncCall(SystemFuncName("is_normalized"),
+											   list_make2($1, makeStringConst($3, @3)),
+											   COERCE_SQL_SYNTAX,
+											   @2);
+				}
+			| cypher_expr IS NOT NORMALIZED							%prec IS
+				{
+					$$ = makeNotExpr((Node *) makeFuncCall(SystemFuncName("is_normalized"),
+														   list_make2($1, makeStringConst("NFC", -1)),
+														   COERCE_SQL_SYNTAX,
+														   @2),
+									 @2);
+				}
+			| cypher_expr IS NOT unicode_normal_form NORMALIZED		%prec IS
+				{
+					$$ = makeNotExpr((Node *) makeFuncCall(SystemFuncName("is_normalized"),
+														   list_make2($1, makeStringConst($4, @4)),
+														   COERCE_SQL_SYNTAX,
+														   @2),
+									 @2);
+				}
 			| cypher_c_expr
 		;
 
@@ -20639,6 +20669,20 @@ cypher_expr_func_subexpr:
 					$$ = (Node *) makeFuncCall(SystemFuncName("trim"),
 											   list_make1($3),
 											   COERCE_EXPLICIT_CALL, @1);
+				}
+			| NORMALIZE '(' a_expr ')'
+				{
+					$$ = (Node *) makeFuncCall(SystemFuncName("normalize"),
+											   list_make2($3, makeStringConst("NFC", -1)),
+											   COERCE_SQL_SYNTAX,
+											   @1);
+				}
+			| NORMALIZE '(' a_expr ',' unicode_normal_form ')'
+				{
+					$$ = (Node *) makeFuncCall(SystemFuncName("normalize"),
+											   list_make2($3, makeStringConst($5, @5)),
+											   COERCE_SQL_SYNTAX,
+											   @1);
 				}
 		;
 

@@ -896,6 +896,89 @@ ERROR:  Variable name "_agens_default_whatever" is not allowed
 LINE 1: MATCH (_agens_default_whatever) RETURN 0;
                ^
 DETAIL:  Variables named "_agens_default_" or starting with "_agens_default_" are reserved for internal use
+--
+-- normalize support check
+--
+-- unicode vertex property
+CREATE (a:v1 {name: U&'\0061\0308\24D1c', idx: 1}) RETURN a;
+                a                 
+----------------------------------
+ v1[4.4]{"idx": 1, "name": "äⓑc"}
+(1 row)
+
+CREATE (b:v1 {name: U&'\00E4\24D1c', idx: 2}) RETURN b;
+                b                 
+----------------------------------
+ v1[4.5]{"idx": 2, "name": "äⓑc"}
+(1 row)
+
+-- normalize, normalize with form
+RETURN normalize(U&'\0061\0308\24D1c');
+ normalize 
+-----------
+ "äⓑc"
+(1 row)
+
+RETURN normalize(U&'\0061\0308\24D1c', NFC);
+ normalize 
+-----------
+ "äⓑc"
+(1 row)
+
+RETURN normalize(U&'\0061\0308\24D1c', NFD);
+ normalize 
+-----------
+ "äⓑc"
+(1 row)
+
+RETURN normalize(U&'\0061\0308\24D1c', NFKC);
+ normalize 
+-----------
+ "äbc"
+(1 row)
+
+RETURN normalize(U&'\0061\0308\24D1c', NFKD);
+ normalize 
+-----------
+ "äbc"
+(1 row)
+
+-- property comparison
+MATCH (n:v1 {name: U&'\00E4\24D1c'}) RETURN n.name, n.idx;
+ name  | idx 
+-------+-----
+ "äⓑc" | 2
+(1 row)
+
+MATCH (n:v1) where n.name = normalize(U&'\00E4\24D1c') RETURN n.name, n.idx;
+ name  | idx 
+-------+-----
+ "äⓑc" | 2
+(1 row)
+
+MATCH (n:v1 {name: U&'\0061\0308\24D1c'}) RETURN n.name, n.idx;
+ name  | idx 
+-------+-----
+ "äⓑc" | 1
+(1 row)
+
+MATCH (n:v1) where n.name = normalize(U&'\0061\0308\24D1c', NFC) RETURN n.name, n.idx;
+ name  | idx 
+-------+-----
+ "äⓑc" | 2
+(1 row)
+
+-- IS NORMALIZED, IS NOT NORMALIZED
+RETURN U&'\0061\0308\24D1c' IS NORMALIZED AS NFC,
+  U&'\0061\0308\24D1c' IS NFD NORMALIZED AS NFD,
+  U&'\0061\0308\24D1c' IS NFKC NORMALIZED AS NFKC,
+  U&'\0061\0308\24D1c' IS NFKD NORMALIZED AS NFKD,
+  U&'\0061\0308\24D1c' IS NOT NORMALIZED AS NOT_NFC;
+ nfc | nfd | nfkc | nfkd | not_nfc 
+-----+-----+------+------+---------
+ f   | t   | f    | f    | t
+(1 row)
+
 -- Tear down
 DROP TABLE t1;
 DROP GRAPH test_cypher_expr CASCADE;
