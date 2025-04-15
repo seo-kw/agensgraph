@@ -92,6 +92,7 @@ static Node *adjustListIndexType(ParseState *pstate, Node *idx);
 static Node *transformAExprOp(ParseState *pstate, A_Expr *a);
 static Node *transformAExprIn(ParseState *pstate, A_Expr *a);
 static Node *transformBoolExpr(ParseState *pstate, BoolExpr *b);
+static Node *transformAExprNullIf(ParseState *pstate, A_Expr *a);
 static Node *coerce_unknown_const(ParseState *pstate, Node *expr, Oid ityp,
 								  Oid otyp);
 static Datum stringToJsonb(ParseState *pstate, char *s, int location);
@@ -183,6 +184,8 @@ transformCypherExprRecurse(ParseState *pstate, Node *expr)
 						return transformAExprOp(pstate, a);
 					case AEXPR_IN:
 						return transformAExprIn(pstate, a);
+					case AEXPR_NULLIF:
+						return transformAExprNullIf(pstate, a);
 					default:
 						elog(ERROR, "unrecognized A_Expr kind: %d", a->kind);
 						return NULL;
@@ -2009,6 +2012,47 @@ transformBoolExpr(ParseState *pstate, BoolExpr *b)
 	return (Node *) makeBoolExpr(b->boolop, args, b->location);
 }
 
+static Node *
+transformAExprNullIf(ParseState *pstate, A_Expr *a)
+{
+	Node	   *lexpr = transformCypherExprRecurse(pstate, a->lexpr);
+	Node	   *rexpr = transformCypherExprRecurse(pstate, a->rexpr);
+	OpExpr	   *result;
+
+	result = (OpExpr *) make_op(pstate,
+								a->name,
+								lexpr,
+								rexpr,
+								pstate->p_last_srf,
+								a->location);
+
+	/*
+	 * The comparison operator itself should yield boolean ...
+	 */
+	if (result->opresulttype != BOOLOID)
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("NULLIF requires = operator to yield boolean"),
+				 parser_errposition(pstate, a->location)));
+	if (result->opretset)
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+		/* translator: %s is name of a SQL construct, eg NULLIF */
+				 errmsg("%s must not return a set", "NULLIF"),
+				 parser_errposition(pstate, a->location)));
+
+	/*
+	 * ... but the NullIfExpr will yield the first operand's type.
+	 */
+	result->opresulttype = exprType((Node *) linitial(result->args));
+
+	/*
+	 * We rely on NullIfExpr and OpExpr being the same struct
+	 */
+	NodeSetTag(result, T_NullIfExpr);
+
+	return (Node *) result;
+}
 /*
  * Helper function to build a CypherTypeCast node.
  *

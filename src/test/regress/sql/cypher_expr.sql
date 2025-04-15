@@ -342,6 +342,22 @@ MATCH (_agens_default_) RETURN _agens_default_;
 MATCH (_agens_default_a) RETURN _agens_default_a;
 MATCH (_agens_default_whatever) RETURN 0;
 
+--
+-- NULLIF test
+--
+CREATE GRAPH nullif_test;
+SET graph_path = nullif_test;
+
+CREATE
+  (a:v1 {name: 'Alice', nickname: 'Alpha'}),
+  (b:v1 {name: 'Brown',  nickname: 'Bravo'}),
+  (c:v1 {name: 'Charlie', nickname: 'Charlie'});
+
+MATCH (a) RETURN coalesce(nullIf(a.name, a.nickname),'NULL');
+
+-- NULLIF test clearing
+DROP GRAPH nullif_test CASCADE;
+
 -- Tear down
 DROP TABLE t1;
 DROP GRAPH test_cypher_expr CASCADE;
