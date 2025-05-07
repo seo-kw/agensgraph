@@ -19,6 +19,7 @@
 #include "parser/parse_agg.h"
 #include "parser/parse_collate.h"
 #include "parser/parse_cypher_expr.h"
+#include "parser/parse_cypher_label_expr.h"
 #include "parser/parse_expr.h"
 #include "parser/parse_func.h"
 #include "parser/parse_relation.h"
@@ -116,11 +117,11 @@ checkNodeForRefForDijkstra(ParseState *pstate, CypherNode *cnode)
 {
 	checkNodeReferable(pstate, cnode);
 
-	if (getCypherName(cnode->label) != NULL)
+	if (getFirstCypherLabelName(cnode) != NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("label is not supported"),
-				 parser_errposition(pstate, getCypherNameLoc(cnode->label))));
+				 parser_errposition(pstate, getFirstCypherLabelLoc(cnode))));
 
 	if (cnode->prop_map != NULL)
 		ereport(ERROR,
@@ -166,11 +167,11 @@ checkNodeForRef(ParseState *pstate, CypherNode *cnode)
 {
 	checkNodeReferable(pstate, cnode);
 
-	if (getCypherName(cnode->label) != NULL)
+	if (getFirstCypherLabelName(cnode) != NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("label is not supported"),
-				 parser_errposition(pstate, getCypherNameLoc(cnode->label))));
+				 parser_errposition(pstate, getFirstCypherLabelLoc(cnode))));
 
 	if (cnode->prop_map != NULL)
 		ereport(ERROR,
@@ -975,7 +976,7 @@ makeEdgesSubLink(CypherPath *cpath, bool is_dijkstra)
 static void
 getCypherRelType(CypherRel *crel, char **typname, int *typloc)
 {
-	if (crel->types == NIL)
+	if (crel->label_expr == NIL)
 	{
 		*typname = AG_EDGE;
 		if (typloc != NULL)
@@ -983,18 +984,9 @@ getCypherRelType(CypherRel *crel, char **typname, int *typloc)
 	}
 	else
 	{
-		Node	   *type;
-
-		if (list_length(crel->types) > 1)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("multiple types for relationship not supported")));
-
-		type = linitial(crel->types);
-
-		*typname = getCypherName(type);
+		*typname = getFirstCypherLabelLoc(crel);
 		if (typloc != NULL)
-			*typloc = getCypherNameLoc(type);
+			*typloc = getFirstCypherLabelLoc(crel);
 	}
 }
 

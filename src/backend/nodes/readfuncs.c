@@ -3195,6 +3195,17 @@ _readCypherIndices(void)
 	READ_DONE();
 }
 
+static CypherLabelExpr *
+_readCypherLabelExpr(void)
+{
+	READ_LOCALS(CypherLabelExpr);
+
+	READ_ENUM_FIELD(kind, CypherLabelExprKind);
+	READ_NODE_FIELD(label_names);
+
+	READ_DONE();
+}
+
 /*
  * parseNodeString
  *

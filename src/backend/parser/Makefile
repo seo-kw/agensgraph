@@ -36,6 +36,7 @@ OBJS = \
 	scan.o \
 	scansup.o \
 	parse_cypher_expr.o \
+	parse_cypher_label_expr.o \
 	parse_graph.o \
 	parse_shortestpath.o \
 	parse_cypher_utils.o

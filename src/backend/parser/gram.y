@@ -20937,9 +20937,7 @@ cypher_node:
 
 					n = makeNode(CypherNode);
 					n->variable = $2;
-					n->label = $3;
 					n->label_expr = (CypherLabelExpr *) $3;
-            		n->label_expr->kind = LABEL_KIND_VERTEX;
 					n->only = false;
 					n->prop_map = $4;
 					$$ = (Node *) n;
@@ -20956,9 +20954,7 @@ cypher_node:
 
 					n = makeNode(CypherNode);
 					n->variable = $2;
-					n->label = $3;
 					n->label_expr = (CypherLabelExpr *) $3;
-            		n->label_expr->kind = LABEL_KIND_VERTEX;
 					n->only = true;
 					n->prop_map = $5;
 					$$ = (Node *) n;
@@ -20980,7 +20976,7 @@ cypher_rel:
 					if ($1 && $8)
 						n->direction = CYPHER_REL_DIR_NONE;
 					n->variable = $3;
-					n->types = $4;
+					n->label_expr = $4;
 					n->only = false;
 					n->varlen = $5;
 					n->prop_map = $6;
@@ -21006,7 +21002,7 @@ cypher_rel:
 					if ($1 && $9)
 						n->direction = CYPHER_REL_DIR_NONE;
 					n->variable = $3;
-					n->types = $4;
+					n->label_expr = $4;
 					n->only = true;
 					n->varlen = $6;
 					n->prop_map = $7;
@@ -21043,6 +21039,7 @@ cypher_expr_label:
         {
             CypherLabelExpr *n;
             n = makeNode(CypherLabelExpr);
+			n->type = LABEL_EXPR_TYPE_SINGLE;
             n->label_names = list_make1(makeString($2));
 
             $$ = (Node *) n;

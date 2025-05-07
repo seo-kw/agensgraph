@@ -4438,7 +4438,7 @@ _outCypherNode(StringInfo str, const CypherNode *node)
 	WRITE_NODE_TYPE("CYPHERNODE");
 
 	WRITE_NODE_FIELD(variable);
-	WRITE_NODE_FIELD(label);
+	WRITE_NODE_FIELD(label_expr);
 	WRITE_BOOL_FIELD(only);
 	WRITE_NODE_FIELD(prop_map);
 }
@@ -4448,9 +4448,8 @@ _outCypherLabelExpr(StringInfo str, const CypherLabelExpr *node)
 {
 	WRITE_NODE_TYPE("CYPHERLABELEXPR");
 
-	WRITE_ENUM_FIELD(type, CypherLabelExprType);
+	WRITE_ENUM_FIELD(kind, CypherLabelExprKind);
 	WRITE_NODE_FIELD(label_names);
-	WRITE_CHAR_FIELD(kind);
 }
 
 static void
@@ -4460,7 +4459,7 @@ _outCypherRel(StringInfo str, const CypherRel *node)
 
 	WRITE_INT_FIELD(direction);
 	WRITE_NODE_FIELD(variable);
-	WRITE_NODE_FIELD(types);
+	WRITE_NODE_FIELD(label_expr);
 	WRITE_BOOL_FIELD(only);
 	WRITE_NODE_FIELD(varlen);
 }

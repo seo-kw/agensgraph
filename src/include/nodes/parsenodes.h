@@ -4363,24 +4363,25 @@ typedef enum
     LABEL_EXPR_TYPE_AND,          // (x:label1:label2: ..)
     LABEL_EXPR_TYPE_OR,           // (x:label1|label2| ..)
     LABEL_EXPR_TYPE_NOT
-} CypherLabelExprType;
+} CypherLabelExprKind;
 
 /*
  * Represents label expressions.
  *
- * Note: support for mixing AND and OR expression
- * may be added in future.
+ * Note: There is a comparator function for this type- label_expr_are_equal.
+ * If any new fields are added, the comparator function should be updated if
+ * necessary.
  */
 typedef struct CypherLabelExpr
 {
     NodeTag		type;
-    CypherLabelExprType type;
-    /**
-     * this is assigned to rel->label_names.
-     * be careful before free'ing.
+    CypherLabelExprKind kind;
+    /*
+     * List of String.
+     *
+	 * It is assigned to rel->label_names. Be careful before free'ing.
      */
-    List *label_names; // List of String
-    char kind; // 'v' or 'e'. what does label_expr belong to during parse time? not same as the kind of labels in ag_label.kind.
+    List *label_names;
 } CypherLabelExpr;
 
 typedef enum CPathKind
@@ -4408,7 +4409,6 @@ typedef struct CypherNode
 {
 	NodeTag		type;
 	Node	   *variable;		/* CypherName */
-	Node	   *label;			/* CypherName */
     CypherLabelExpr *label_expr;
 	bool		only;
 	Node	   *prop_map;		/* JSON object expression or string constant */
@@ -4423,7 +4423,6 @@ typedef struct CypherRel
 	NodeTag		type;
 	uint32		direction;		/* bitmask of directions (see above) */
 	Node	   *variable;		/* CypherName */
-	List	   *types;			/* ORed types */
 	CypherLabelExpr *label_expr;
 	bool		only;
 	Node	   *varlen;			/* variable length relationships (A_Indices) */
@@ -4445,6 +4444,8 @@ getCypherName(Node *n)
 	AssertArg(IsA(n, CypherName));
 	return ((CypherName *) n)->name;
 }
+
+
 
 inline static int
 getCypherNameLoc(Node *n)

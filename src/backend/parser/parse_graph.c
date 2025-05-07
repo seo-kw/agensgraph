@@ -27,6 +27,7 @@
 #include "parser/parse_clause.h"
 #include "parser/parse_collate.h"
 #include "parser/parse_cypher_expr.h"
+#include "parser/parse_cypher_label_expr.h"
 #include "parser/parse_cypher_utils.h"
 #include "parser/parse_func.h"
 #include "parser/parse_graph.h"
@@ -651,8 +652,8 @@ static bool validate_pattern_labels(ParseState *pstate, List *pattern)
 			if (IsA(elem, CypherNode))
 			{
 				CypherNode *cnode = (CypherNode *) elem;
-				char 	   *labname = getCypherName(cnode->label);
-				int			labloc = getCypherNameLoc(cnode->label);
+				char 	   *labname = getFirstCypherLabelName(cnode);
+				int			labloc = getFirstCypherLabelLoc(cnode);
 				
 				if (labname == NULL)
 					continue;
@@ -663,9 +664,8 @@ static bool validate_pattern_labels(ParseState *pstate, List *pattern)
 			else
 			{
 				CypherRel  *crel = (CypherRel *) elem;
-				Node 	   *type = crel->types ? linitial(crel->types) : NULL;
-				char 	   *typname = getCypherName(type);
-				int			typloc = getCypherNameLoc(type);
+				char 	   *typname = getFirstCypherLabelName(crel);
+				int			typloc = getFirstCypherLabelLoc(crel);
 
 				if (typname == NULL)
 					continue;
@@ -1454,15 +1454,16 @@ static char *getEntityVarname(Node *entity)
 static char *getEntityLabname(Node *entity)
 {
 	if (IsA(entity, CypherNode))
-		return getCypherName(((CypherNode *) entity)->label);
+		// return getCypherName(((CypherNode *) entity)->label);
+		return getFirstCypherLabelName(((CypherNode *) entity));
 	else if (IsA(entity, CypherRel))
 	{
 		CypherRel *crel = (CypherRel *) entity;
 
-		if (crel->types == NIL)
+		if (crel->label_expr == NIL)
 			return NULL;
 
-		return getCypherName(linitial(crel->types));
+		return getFirstCypherLabelName(crel);
 	}
 	else
 		elog(ERROR, "unexpected entity type: %d", (int) nodeTag(entity));
@@ -1955,7 +1956,7 @@ transformMatchNode(ParseState *pstate, CypherNode *cnode, List **targetList,
 			 * from the pattern, it should be an actual vertex or a future
 			 * vertex
 			 */
-			char	  *_labname = getCypherName(cnode->label);
+			char	  *_labname = getFirstCypherLabelName(cnode);
 
 			/*
 			 * If the variable is from the previous clause, it should either
@@ -1970,7 +1971,7 @@ transformMatchNode(ParseState *pstate, CypherNode *cnode, List **targetList,
 					ereport(ERROR,
 							(errcode(ERRCODE_SYNTAX_ERROR),
 							errmsg("label on variable from previous clauses is not allowed"),
-							parser_errposition(pstate, getCypherNameLoc(cnode->label))));
+							parser_errposition(pstate, getFirstCypherLabelLoc(cnode))));
 			}
 			return (Node *) te;
 		}
@@ -1995,7 +1996,7 @@ transformMatchNode(ParseState *pstate, CypherNode *cnode, List **targetList,
 		{
 			FutureVertex *fv;
 			EntityInfo	 *_ei = getEntityInfo(pstate, varname, T_CypherNode, false);
-			char		 *_labname = getCypherName(cnode->label);
+			char		 *_labname = getFirstCypherLabelName(cnode);
 
 			if ((_labname != NULL && (_ei->labname == NULL || strcmp(_ei->labname, _labname) != 0)) ||
 				 exprType((Node *) col) != VERTEXOID)
@@ -2024,8 +2025,8 @@ transformMatchNode(ParseState *pstate, CypherNode *cnode, List **targetList,
 
 	if (varname == NULL)
 	{
-		labname = getCypherName(cnode->label);
-		labloc = getCypherNameLoc(cnode->label);
+		labname = getFirstCypherLabelName(cnode);
+		labloc = getFirstCypherLabelLoc(cnode);
 		prop_constr = (cnode->prop_map != NULL);
 	}
 	else
@@ -2990,7 +2991,7 @@ isZeroLengthVLE(CypherRel *crel)
 static void
 getCypherRelType(CypherRel *crel, char **typname, int *typloc)
 {
-	if (crel->types == NIL)
+	if (crel->label_expr == NIL)
 	{
 		*typname = AG_EDGE;
 		if (typloc != NULL)
@@ -2998,18 +2999,9 @@ getCypherRelType(CypherRel *crel, char **typname, int *typloc)
 	}
 	else
 	{
-		Node	   *type;
-
-		if (list_length(crel->types) > 1)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("multiple types for relationship not supported")));
-
-		type = linitial(crel->types);
-
-		*typname = getCypherName(type);
+		*typname = getFirstCypherLabelName(crel);
 		if (typloc != NULL)
-			*typloc = getCypherNameLoc(type);
+			*typloc = getFirstCypherLabelLoc(crel);
 	}
 }
 
@@ -4091,7 +4083,7 @@ transformCreateNode(ParseState *pstate, CypherNode *cnode, List **targetList)
 
 	if (create)
 	{
-		char	   *labname = getCypherName(cnode->label);
+		char	   *labname = getFirstCypherLabelName(cnode);
 		Relation	relation;
 		Node	   *vertex;
 
@@ -4101,7 +4093,7 @@ transformCreateNode(ParseState *pstate, CypherNode *cnode, List **targetList)
 		}
 		else
 		{
-			int			labloc = getCypherNameLoc(cnode->label);
+			int			labloc = getFirstCypherLabelLoc(cnode);
 
 			if (strcmp(labname, AG_VERTEX) == 0)
 				ereport(ERROR,
@@ -4158,7 +4150,7 @@ transformCreateRel(ParseState *pstate, CypherRel *crel, List **targetList)
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("only directed relationships are allowed in CREATE")));
 
-	if (list_length(crel->types) != 1)
+	if (list_length(crel->label_expr) != 1)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("only one relationship type is allowed for CREATE")));
@@ -4180,16 +4172,15 @@ transformCreateRel(ParseState *pstate, CypherRel *crel, List **targetList)
 				 errmsg("duplicate variable \"%s\"", varname),
 				 parser_errposition(pstate, getCypherNameLoc(crel->variable))));
 
-	type = linitial(crel->types);
-	labnames = getCypherName(type);
+	labnames = getFirstCypherLabelName(crel);
 
 	if (strcmp(labnames, AG_EDGE) == 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("cannot create edge on default label"),
-				 parser_errposition(pstate, getCypherNameLoc(type))));
+				 parser_errposition(pstate, getFirstCypherLabelLoc(type))));
 
-	createEdgeLabelIfNotExist(pstate, labnames, getCypherNameLoc(type));
+	createEdgeLabelIfNotExist(pstate, labnames, getFirstCypherLabelLoc(type));
 
 	relation = openTargetLabel(pstate, labnames);
 
@@ -4852,7 +4843,7 @@ transformMergeNode(ParseState *pstate, CypherNode *cnode, bool singlenode,
 {
 	char	   *varname = getCypherName(cnode->variable);
 	int			varloc = getCypherNameLoc(cnode->variable);
-	char	   *labname = getCypherName(cnode->label);
+	char	   *labname = getFirstCypherLabelName(cnode);
 	TargetEntry *te;
 	Relation	relation;
 	Node	   *vertex = NULL;
@@ -4875,7 +4866,7 @@ transformMergeNode(ParseState *pstate, CypherNode *cnode, bool singlenode,
 	}
 	else
 	{
-		int			labloc = getCypherNameLoc(cnode->label);
+		int			labloc = getFirstCypherLabelLoc(cnode);
 
 		if (strcmp(labname, AG_VERTEX) == 0)
 			ereport(ERROR,
@@ -4931,7 +4922,7 @@ transformMergeRel(ParseState *pstate, CypherRel *crel, List **targetList,
 	AttrNumber	resno = InvalidAttrNumber;
 	GraphEdge  *gedge;
 
-	if (list_length(crel->types) != 1)
+	if (list_length(crel->label_expr) != 1)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("only one relationship type is allowed for MERGE")));
@@ -4949,18 +4940,17 @@ transformMergeRel(ParseState *pstate, CypherRel *crel, List **targetList,
 				 errmsg("duplicate variable \"%s\"", varname),
 				 parser_errposition(pstate, getCypherNameLoc(crel->variable))));
 
-	type = linitial(crel->types);
-	typname = getCypherName(type);
+	typname = getFirstCypherLabelName(crel);
 
 	if (strcmp(typname, AG_EDGE) == 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("cannot create edge on default label"),
-				 parser_errposition(pstate, getCypherNameLoc(type))));
+				 parser_errposition(pstate, getFirstCypherLabelLoc(type))));
 
-	createEdgeLabelIfNotExist(pstate, typname, getCypherNameLoc(type));
+	createEdgeLabelIfNotExist(pstate, typname, getFirstCypherLabelLoc(type));
 
-	relation = openTargetLabel(pstate, getCypherName(linitial(crel->types)));
+	relation = openTargetLabel(pstate, getFirstCypherLabelName(crel));
 
 	edge = makeNewEdge(pstate, relation, crel->prop_map);
 	relid = RelationGetRelid(relation);
@@ -5814,7 +5804,7 @@ static bool
 isNodeForRef(CypherNode *cnode)
 {
 	return (getCypherName(cnode->variable) != NULL &&
-			getCypherName(cnode->label) == NULL &&
+			getFirstCypherLabelName(cnode) == NULL &&
 			cnode->prop_map == NULL);
 }
 

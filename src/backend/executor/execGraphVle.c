@@ -21,6 +21,7 @@
 #include "access/tableam.h"
 #include "access/skey.h"
 #include "utils/fmgroids.h"
+#include "parser/parse_cypher_label_expr.h"
 
 #define VAR_START_VID	0
 #define VAR_END_VID		1
@@ -146,8 +147,9 @@ ExecInitGraphVLE(GraphVLE *vleplan, EState *estate, int eflags)
 	/*
 	 * Find all target labels.
 	 */
-	label_name = (vel_rel->types == NIL) ?
-		AG_EDGE : getCypherName(linitial(vel_rel->types));
+	label_name = (vel_rel->label_expr == NIL) ?
+		AG_EDGE : getFirstCypherLabelName(vel_rel);
+	
 	label_rel_id = get_laboid_relid(get_labname_laboid(label_name,
 													   get_graph_path_oid()));
 	scan_label_oids = lappend_oid(scan_label_oids, label_rel_id);
