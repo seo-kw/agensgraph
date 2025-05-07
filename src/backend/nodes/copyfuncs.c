@@ -5930,6 +5930,7 @@ _copyCypherNode(const CypherNode *from)
 
 	COPY_NODE_FIELD(variable);
 	COPY_NODE_FIELD(label);
+	COPY_NODE_FIELD(label_expr);
 	COPY_SCALAR_FIELD(only);
 	COPY_NODE_FIELD(prop_map);
 
@@ -5944,9 +5945,22 @@ _copyCypherRel(const CypherRel *from)
 	COPY_SCALAR_FIELD(direction);
 	COPY_NODE_FIELD(variable);
 	COPY_NODE_FIELD(types);
+	COPY_NODE_FIELD(label_expr);
 	COPY_SCALAR_FIELD(only);
 	COPY_NODE_FIELD(varlen);
 	COPY_NODE_FIELD(prop_map);
+
+	return newnode;
+}
+
+static CypherRel *
+_copyCypherLabelExpr(const CypherLabelExpr *from)
+{
+	CypherLabelExpr  *newnode = makeNode(CypherLabelExpr);
+
+	COPY_SCALAR_FIELD(type);
+    COPY_NODE_FIELD(label_names);
+    COPY_SCALAR_FIELD(kind);
 
 	return newnode;
 }

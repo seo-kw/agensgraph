@@ -4146,7 +4146,7 @@ transformCreateRel(ParseState *pstate, CypherRel *crel, List **targetList)
 {
 	char	   *varname;
 	Node	   *type;
-	char	   *typname;
+	char	   *labnames;
 	Relation	relation;
 	Node	   *edge;
 	Oid			relid = InvalidOid;
@@ -4181,17 +4181,17 @@ transformCreateRel(ParseState *pstate, CypherRel *crel, List **targetList)
 				 parser_errposition(pstate, getCypherNameLoc(crel->variable))));
 
 	type = linitial(crel->types);
-	typname = getCypherName(type);
+	labnames = getCypherName(type);
 
-	if (strcmp(typname, AG_EDGE) == 0)
+	if (strcmp(labnames, AG_EDGE) == 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("cannot create edge on default label"),
 				 parser_errposition(pstate, getCypherNameLoc(type))));
 
-	createEdgeLabelIfNotExist(pstate, typname, getCypherNameLoc(type));
+	createEdgeLabelIfNotExist(pstate, labnames, getCypherNameLoc(type));
 
-	relation = openTargetLabel(pstate, typname);
+	relation = openTargetLabel(pstate, labnames);
 
 	edge = makeNewEdge(pstate, relation, crel->prop_map);
 	relid = RelationGetRelid(relation);

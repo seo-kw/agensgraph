@@ -800,7 +800,7 @@ static bool has_internal_default_prefix(char *str);
 %type <node>	cypher_pattern_part cypher_pattern_var cypher_anon_pattern_part
 				cypher_shortestpath cypher_dijkstra
 				cypher_node cypher_rel
-				cypher_var cypher_var_opt cypher_label_opt
+				cypher_var cypher_var_opt cypher_expr_label
 				cypher_varlen_opt cypher_range_opt cypher_range_idx
 				cypher_range_idx_opt cypher_prop_map_opt
 %type <str>		cypher_pattern_varname cypher_labelname
@@ -20931,18 +20931,20 @@ cypher_path_chain:
 		;
 
 cypher_node:
-			'(' cypher_var_opt cypher_label_opt cypher_prop_map_opt ')'
+			'(' cypher_var_opt cypher_expr_label cypher_prop_map_opt ')'
 				{
 					CypherNode *n;
 
 					n = makeNode(CypherNode);
 					n->variable = $2;
 					n->label = $3;
+					n->label_expr = (CypherLabelExpr *) $3;
+            		n->label_expr->kind = LABEL_KIND_VERTEX;
 					n->only = false;
 					n->prop_map = $4;
 					$$ = (Node *) n;
 				}
-			| '(' cypher_var_opt cypher_label_opt ONLY cypher_prop_map_opt ')'
+			| '(' cypher_var_opt cypher_expr_label ONLY cypher_prop_map_opt ')'
 				{
 					CypherNode *n;
 
@@ -20955,6 +20957,8 @@ cypher_node:
 					n = makeNode(CypherNode);
 					n->variable = $2;
 					n->label = $3;
+					n->label_expr = (CypherLabelExpr *) $3;
+            		n->label_expr->kind = LABEL_KIND_VERTEX;
 					n->only = true;
 					n->prop_map = $5;
 					$$ = (Node *) n;
@@ -21027,19 +21031,23 @@ cypher_var_opt:
 			| /* EMPTY */		{ $$ = NULL; }
 		;
 
-cypher_label_opt:
-			':' cypher_labelname
-				{
-					CypherName *n;
+cypher_expr_label:
+    /* empty */
+        {
+            CypherLabelExpr *n;
+            n = makeNode(CypherLabelExpr);
 
-					n = makeNode(CypherName);
-					n->name = $2;
-					n->location = @2;
-					$$ = (Node *) n;
-				}
-			| /* EMPTY */
-					{ $$ = NULL; }
-		;
+            $$ = (Node *) n;
+        }
+    | ':' cypher_labelname
+        {
+            CypherLabelExpr *n;
+            n = makeNode(CypherLabelExpr);
+            n->label_names = list_make1(makeString($2));
+
+            $$ = (Node *) n;
+        }
+    ;
 
 cypher_labelname:
 			ColId

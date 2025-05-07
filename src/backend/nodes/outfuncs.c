@@ -4444,6 +4444,16 @@ _outCypherNode(StringInfo str, const CypherNode *node)
 }
 
 static void
+_outCypherLabelExpr(StringInfo str, const CypherLabelExpr *node)
+{
+	WRITE_NODE_TYPE("CYPHERLABELEXPR");
+
+	WRITE_ENUM_FIELD(type, CypherLabelExprType);
+	WRITE_NODE_FIELD(label_names);
+	WRITE_CHAR_FIELD(kind);
+}
+
+static void
 _outCypherRel(StringInfo str, const CypherRel *node)
 {
 	WRITE_NODE_TYPE("CYPHERREL");

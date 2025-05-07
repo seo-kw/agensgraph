@@ -4356,6 +4356,33 @@ typedef struct CypherUnwindClause
 	ResTarget  *target;
 } CypherUnwindClause;
 
+typedef enum
+{
+    LABEL_EXPR_TYPE_EMPTY = 0,    // (x)
+    LABEL_EXPR_TYPE_SINGLE,       // (x:label)
+    LABEL_EXPR_TYPE_AND,          // (x:label1:label2: ..)
+    LABEL_EXPR_TYPE_OR,           // (x:label1|label2| ..)
+    LABEL_EXPR_TYPE_NOT
+} CypherLabelExprType;
+
+/*
+ * Represents label expressions.
+ *
+ * Note: support for mixing AND and OR expression
+ * may be added in future.
+ */
+typedef struct CypherLabelExpr
+{
+    NodeTag		type;
+    CypherLabelExprType type;
+    /**
+     * this is assigned to rel->label_names.
+     * be careful before free'ing.
+     */
+    List *label_names; // List of String
+    char kind; // 'v' or 'e'. what does label_expr belong to during parse time? not same as the kind of labels in ag_label.kind.
+} CypherLabelExpr;
+
 typedef enum CPathKind
 {
 	CPATH_NORMAL,
@@ -4382,6 +4409,7 @@ typedef struct CypherNode
 	NodeTag		type;
 	Node	   *variable;		/* CypherName */
 	Node	   *label;			/* CypherName */
+    CypherLabelExpr *label_expr;
 	bool		only;
 	Node	   *prop_map;		/* JSON object expression or string constant */
 } CypherNode;
@@ -4396,6 +4424,7 @@ typedef struct CypherRel
 	uint32		direction;		/* bitmask of directions (see above) */
 	Node	   *variable;		/* CypherName */
 	List	   *types;			/* ORed types */
+	CypherLabelExpr *label_expr;
 	bool		only;
 	Node	   *varlen;			/* variable length relationships (A_Indices) */
 	Node	   *prop_map;		/* JSON object expression or string constant */
