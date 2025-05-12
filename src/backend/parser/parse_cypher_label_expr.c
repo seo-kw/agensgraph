@@ -75,11 +75,19 @@ char *find_first_invalid_label(CypherLabelExpr *label_expr,
 }
 
 // TODO: can be moved to utils?
-int string_list_comparator(const ListCell *a, const ListCell *b)
+/*
+ * List comparator for String nodes. The ListCells a and b must
+ * contain node pointer of type T_String.
+ */
+int list_string_cmp(const ListCell *a, const ListCell *b)
 {
-    char *str_a = lfirst(a);
-    char *str_b = lfirst(b);
-    return strcmp(str_a, str_b);
+    Node *na = lfirst(a);
+    Node *nb = lfirst(b);
+
+    Assert(IsA(na, String));
+    Assert(IsA(nb, String));
+
+    return strcmp(strVal(na), strVal(nb));
 }
 
 /*
@@ -90,7 +98,7 @@ int string_list_comparator(const ListCell *a, const ListCell *b)
 char *label_expr_table_name(CypherLabelExpr *label_expr,
                             char label_expr_kind)
 {
-    switch (label_expr->type)
+    switch (label_expr->kind)
     {
     case LABEL_EXPR_TYPE_EMPTY:
         return label_expr_kind == LABEL_KIND_VERTEX ? AG_VERTEX :
@@ -107,13 +115,12 @@ char *label_expr_table_name(CypherLabelExpr *label_expr,
         return NULL;
 
     case LABEL_EXPR_TYPE_OR:
-        // TODO: implement
-        elog(ERROR, "label expression type OR cannot cannot have a table");
+        elog(ERROR, "label expression type OR cannot have a table");
         return NULL;
 
 	case LABEL_EXPR_TYPE_NOT:
 		// TODO: implement
-		elog(ERROR, "label expression type OR cannot cannot have a table");
+		elog(ERROR, "label expression type OR cannot have a table");
 		return NULL;
 		
     default:
@@ -180,8 +187,10 @@ bool label_expr_has_tables(CypherLabelExpr *label_expr, char label_expr_kind,
 {
     char *table_name;
 	Oid cached_lab_oid;
+	Oid cached_lab_type_oid;
+    ListCell *lc;
 
-    switch (label_expr->type)
+    switch (label_expr->kind)
     {
     case LABEL_EXPR_TYPE_EMPTY:
         return true;
@@ -193,11 +202,19 @@ bool label_expr_has_tables(CypherLabelExpr *label_expr, char label_expr_kind,
 			 get_labid_typeoid(graph_oid, cached_lab_oid)
 			  != (label_expr_kind == LABEL_KIND_VERTEX ? VERTEXOID : EDGEOID));
     case LABEL_EXPR_TYPE_OR:
-        // TODO: implement
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("label expression type OR is not implemented")));
-        return false;
+		foreach (lc, label_expr->label_names)
+		{
+			table_name = strVal(lfirst(lc));
+			cached_lab_oid = get_labname_laboid(table_name, graph_oid);
+			cached_lab_type_oid = get_labid_typeoid(graph_oid, cached_lab_oid);
+
+            if  (cached_lab_oid != InvalidOid 
+				&& cached_lab_type_oid == (label_expr_kind == LABEL_KIND_VERTEX ? VERTEXOID : EDGEOID))
+            {
+                return true;
+            }
+		}
+		return false;
 	case LABEL_EXPR_TYPE_NOT:
         // TODO: implement
         ereport(ERROR,
@@ -223,6 +240,10 @@ getFirstCypherLabelName(Node *n)
 	{
 		CypherNode *vertex;
 		vertex = n;
+
+		if (vertex->label_expr == NIL)
+			return NULL;
+
 		label_name = !LABEL_EXPR_IS_EMPTY(vertex->label_expr) ?
 			(char *)strVal(linitial(vertex->label_expr->label_names)) :
 			"";
@@ -231,6 +252,10 @@ getFirstCypherLabelName(Node *n)
 	{
 		CypherRel *edge;
 		edge = n;
+
+		if (edge->label_expr == NIL)
+			return NULL;
+
 		label_name = !LABEL_EXPR_IS_EMPTY(edge->label_expr) ?
 			(char *)strVal(linitial(edge->label_expr->label_names)) :
 			"";

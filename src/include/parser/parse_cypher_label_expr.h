@@ -27,19 +27,18 @@
 
 #define FIRST_LABEL_NAME(label_expr) \
     (list_length((label_expr)->label_names) == 0) ? \
-        NULL : \
-        linitial((label_expr)->label_names)
+        NULL : linitial((label_expr)->label_names)
 
 // TODO: more readable name LABEL_EXPR_HAS_LABEL returning the oppposite?
 #define LABEL_EXPR_LENGTH(label_expr) (list_length((label_expr)->label_names))
 #define LABEL_EXPR_IS_EMPTY(label_expr) \
     (LABEL_EXPR_TYPE((label_expr)) == LABEL_EXPR_TYPE_EMPTY) // TODO: maybe redundant to LABEL_EXPR_TYPE
 #define LABEL_EXPR_TYPE(label_expr) \
-    ((label_expr) ? (label_expr)->type : LABEL_EXPR_TYPE_EMPTY)
+    ((label_expr) ? (label_expr)->kind : LABEL_EXPR_TYPE_EMPTY)
 
 char *find_first_invalid_label(CypherLabelExpr *label_expr,
                                char label_expr_kind, Oid graph_oid);
-int string_list_comparator(const ListCell *a, const ListCell *b);
+int list_string_cmp(const ListCell *a, const ListCell *b);
 char *label_expr_table_name(CypherLabelExpr *label_expr, char label_expr_kind);
 bool label_expr_are_equal(CypherLabelExpr *le1, CypherLabelExpr *le2);
 bool label_expr_has_tables(CypherLabelExpr *label_expr, char label_expr_kind,

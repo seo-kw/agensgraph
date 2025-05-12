@@ -60,6 +60,7 @@
 #include "parser/gramparse.h"
 #include "parser/parser.h"
 #include "parser/parse_graph.h"
+#include "parser/parse_cypher_label_expr.h"
 #include "storage/lmgr.h"
 #include "utils/date.h"
 #include "utils/datetime.h"
@@ -800,9 +801,10 @@ static bool has_internal_default_prefix(char *str);
 %type <node>	cypher_pattern_part cypher_pattern_var cypher_anon_pattern_part
 				cypher_shortestpath cypher_dijkstra
 				cypher_node cypher_rel
-				cypher_var cypher_var_opt cypher_expr_label
+				cypher_var cypher_var_opt
 				cypher_varlen_opt cypher_range_opt cypher_range_idx
 				cypher_range_idx_opt cypher_prop_map_opt
+%type <node> 	cypher_expr_label cypher_expr_label_non_empty
 %type <str>		cypher_pattern_varname cypher_labelname
 %type <boolean>	cypher_rel_left cypher_rel_right
 
@@ -845,6 +847,7 @@ static bool has_internal_default_prefix(char *str);
  * ADD_EQUALS is for Cypher SET clause.
  */
 %token <str>	IDENT UIDENT FCONST SCONST USCONST BCONST XCONST Op
+%token <str>	'|' '&' '!'
 %token <ival>	ICONST PARAM
 %token			TYPECAST DOT_DOT COLON_EQUALS EQUALS_GREATER
 %token			LESS_EQUALS GREATER_EQUALS NOT_EQUALS
@@ -985,9 +988,9 @@ static bool has_internal_default_prefix(char *str);
 %right		FORMAT
 %left		UNION EXCEPT
 %left		INTERSECT
-%left		OR
-%left		AND
-%right		NOT
+%left		OR '|'
+%left		AND '&'
+%right		NOT '!'
 %nonassoc	IS ISNULL NOTNULL	/* IS sets precedence for IS NULL, etc */
 %nonassoc	'<' '>' '=' LESS_EQUALS GREATER_EQUALS NOT_EQUALS ADD_EQUALS
 %nonassoc	BETWEEN IN_P LIKE ILIKE SIMILAR NOT_LA
@@ -20963,7 +20966,7 @@ cypher_node:
 
 cypher_rel:
 			cypher_rel_left '[' cypher_var_opt
-			cypher_types_opt cypher_varlen_opt cypher_prop_map_opt
+			cypher_expr_label cypher_varlen_opt cypher_prop_map_opt
 			']' cypher_rel_right
 				{
 					CypherRel  *n;
@@ -20976,14 +20979,14 @@ cypher_rel:
 					if ($1 && $8)
 						n->direction = CYPHER_REL_DIR_NONE;
 					n->variable = $3;
-					n->label_expr = $4;
+					n->label_expr = (CypherLabelExpr *) $4;
 					n->only = false;
 					n->varlen = $5;
 					n->prop_map = $6;
 					$$ = (Node *) n;
 				}
 			| cypher_rel_left '[' cypher_var_opt
-			cypher_types_opt ONLY cypher_varlen_opt cypher_prop_map_opt
+			cypher_expr_label ONLY cypher_varlen_opt cypher_prop_map_opt
 			']' cypher_rel_right
 				{
 					CypherRel  *n;
@@ -21002,7 +21005,7 @@ cypher_rel:
 					if ($1 && $9)
 						n->direction = CYPHER_REL_DIR_NONE;
 					n->variable = $3;
-					n->label_expr = $4;
+					n->label_expr = (CypherLabelExpr *) $4;
 					n->only = true;
 					n->varlen = $6;
 					n->prop_map = $7;
@@ -21027,24 +21030,68 @@ cypher_var_opt:
 			| /* EMPTY */		{ $$ = NULL; }
 		;
 
+cypher_expr_label_non_empty:
+		':' cypher_labelname
+			{
+				CypherLabelExpr *n;
+				n = makeNode(CypherLabelExpr);
+				n->kind = LABEL_EXPR_TYPE_SINGLE;
+				n->label_names = list_make1(makeString($2));
+
+				$$ = (Node *) n;
+			}
+		| cypher_expr_label_non_empty Op cypher_labelname
+			{
+				CypherLabelExpr *n = (CypherLabelExpr *)$1;
+
+				if(strcmp($2, "|") == 0 || strcmp($2, "&") == 0)
+				{
+					//do nothing
+				}
+				else
+					ereport(ERROR,
+							(errcode(ERRCODE_SYNTAX_ERROR),
+							 errmsg("invalid label expression operator \"%s\""),
+							 $2, parser_errposition(@2)));
+
+				switch (n->kind)
+				{
+					case LABEL_EXPR_TYPE_SINGLE:
+						n->kind = LABEL_EXPR_TYPE_OR;
+						n->label_names = list_append_unique(n->label_names, makeString($3));
+						break;
+					case LABEL_EXPR_TYPE_OR:
+						n->label_names = list_append_unique(n->label_names, makeString($3));
+						break;
+					default:
+						ereport(ERROR,
+								(errcode(ERRCODE_SYNTAX_ERROR),
+								 errmsg("Cannot mix different label expressions"),
+								 parser_errposition(@3)));
+				}
+
+				$$ = (Node *) n;
+			}
+		;
+
 cypher_expr_label:
-    /* empty */
-        {
-            CypherLabelExpr *n;
-            n = makeNode(CypherLabelExpr);
+		/* empty */
+			{
+				CypherLabelExpr *n;
+				n = makeNode(CypherLabelExpr);
+				n->kind = LABEL_EXPR_TYPE_EMPTY;
+				n->label_names = NIL;
 
-            $$ = (Node *) n;
-        }
-    | ':' cypher_labelname
-        {
-            CypherLabelExpr *n;
-            n = makeNode(CypherLabelExpr);
-			n->type = LABEL_EXPR_TYPE_SINGLE;
-            n->label_names = list_make1(makeString($2));
-
-            $$ = (Node *) n;
-        }
-    ;
+				$$ = (Node *) n;
+			}
+		| cypher_expr_label_non_empty
+			{
+				/* sorts the list */
+				CypherLabelExpr *n = (CypherLabelExpr *)$1;
+				list_sort(n->label_names, &list_string_cmp);
+				$$ = (Node *)n;
+			}
+		;
 
 cypher_labelname:
 			ColId
