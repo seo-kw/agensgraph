@@ -1,0 +1,6 @@
+# gnn
+comment = 'gnn plpython3 apis'
+default_version = '0.1'
+module_pathname = '$libdir/gnn'
+relocatable = true
+trusted = true
